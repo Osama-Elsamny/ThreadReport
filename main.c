@@ -4,13 +4,21 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#define TEST 10
+#define MAX_THREADS 10
 
 bool all_threads_are_created = false;
 int personCounter = 0;
-int numPeopleGlobal = 10;
-bool arrayLocks[TEST];  
+int numPeopleGlobal = MAX_THREADS;
+bool arrayLocks[MAX_THREADS];  
 pthread_mutex_t personCounter_mutex;
+pthread_mutex_t fetch_inc_mutex;
+
+typedef struct{
+    int next_ticket;
+    int now_servig; 
+} TicketLock;
+
+TicketLock *ticketLock;
 
 typedef struct{
     int personNumber;
@@ -18,6 +26,44 @@ typedef struct{
     double waitingTime;
     double leavingTime;
 } Person;
+
+/** 
+ * Funcition name: fetch_and_inc
+ * Purpose:  Should be an atomic instruction that we will use in acquring a lock 
+ * Developer: Osama Elsamny
+ * Input: N/A
+ * Output: return an int that represents the number of the ticket holder
+*/
+int fetch_and_inc(){
+    int x = ticketLock->next_ticket;
+    (ticketLock->next_ticket)++;
+    return x;
+}
+
+/** 
+ * Funcition name: acquire_lock
+ * Purpose: acquireing the lock for method 3 (Ticket Lock)
+ * Developer: Osama Elsamny
+ * Input: N/A
+ * Output: N/A
+*/
+void acquire_lock(){
+    pthread_mutex_lock(&fetch_inc_mutex);
+    int myTicket = fetch_and_inc();
+    pthread_mutex_unlock(&fetch_inc_mutex);
+    while(ticketLock->now_servig != myTicket){}
+}
+
+/** 
+ * Funcition name: release_lock
+ * Purpose: releaseing the lock for method 3 (Ticket Lock)
+ * Developer: Osama Elsamny
+ * Input: N/A
+ * Output: N/A
+*/
+void release_lock(){
+    (ticketLock->now_servig)++;
+}
 
 /** 
  * Funcition name:current_time_in_ms
@@ -121,10 +167,12 @@ void* createThreadMethodThree(void* arg){
         if(!all_threads_are_created)
             continue;
         /*lock*/
+        acquire_lock();
         person->waitingTime = current_time_in_ms() - person->arrivalTime;
         personCounter++;
         printf("personCounter: %d\n", personCounter);
         /*unlock*/
+        release_lock();
         person->leavingTime = current_time_in_ms();
         printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
@@ -193,6 +241,9 @@ int main(){
     printf("-------------------------------------Method Three------------------------------------------------\n");
     /*-------------------------------------Method Three------------------------------------------------*/
     personCounter = 0;
+    ticketLock = (TicketLock*) malloc(sizeof(TicketLock));
+    ticketLock->next_ticket = 0;
+    ticketLock->now_servig = 0;
     all_threads_are_created = false;
     int numPeople3 = numPeopleGlobal;
     pthread_t people3[numPeople3];
@@ -208,7 +259,7 @@ int main(){
     }
     return 0;
 }
-//Templet for the functions to be written 
+//Templet for the functions
 /** 
  * Funcition name:
  * Purpose: 
