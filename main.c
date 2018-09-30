@@ -1,10 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 #include <pthread.h>
 #include <stdbool.h>
 
-#define MAX_THREADS 10
+#define MAX_THREADS 30
 
 bool all_threads_are_created = false;
 int personCounter = 0;
@@ -22,9 +23,9 @@ TicketLock *ticketLock;
 
 typedef struct{
     int personNumber;
-    double arrivalTime;
-    double waitingTime;
-    double leavingTime;
+    long double arrivalTime;
+    long double waitingTime;
+    long double leavingTime;
 } Person;
 
 /** 
@@ -72,10 +73,10 @@ void release_lock(){
  * Input: N/A
  * Output: return type is double varible
 */
-double current_time_in_ms(void){
+long double current_time_in_ms(void){
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    return now.tv_sec * 1000.0 + now.tv_nsec/1000000.0;
+    return now.tv_sec * 1000000000.0 + now.tv_nsec;
 }
 
 /** 
@@ -111,7 +112,7 @@ void* createThreadMethodOne(void* arg){
         printf("personCounter: %d\n", personCounter);
         pthread_mutex_unlock(&personCounter_mutex);
         person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
@@ -137,12 +138,12 @@ void* createThreadMethodTwo(void* arg){
             continue;
         if(arrayLocks[person->personNumber] == false)
             continue;
-        person->waitingTime = current_time_in_ms() - person->arrivalTime;
+        person->waitingTime = current_time_in_ms() - (person->arrivalTime);
         personCounter++;
         printf("personCounter: %d\n", personCounter);
         arrayLocks[(person->personNumber) + 1] = true;
         person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
@@ -174,7 +175,7 @@ void* createThreadMethodThree(void* arg){
         /*unlock*/
         release_lock();
         person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
