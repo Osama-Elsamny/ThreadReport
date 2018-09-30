@@ -41,7 +41,7 @@ double current_time_in_ms(void){
 */
 void initialzeArrayLocks(){
     for(int i = 0; i < numPeopleGlobal; i++){
-		arrayLocks[i] = 0;
+		arrayLocks[i] = false;
 	}
 }
 
@@ -64,7 +64,7 @@ void* createThreadMethodOne(void* arg){
         personCounter++;
         printf("personCounter: %d\n", personCounter);
         pthread_mutex_unlock(&personCounter_mutex);
-        person->leavingTime = current_time_in_ms() - person->arrivalTime;
+        person->leavingTime = current_time_in_ms();
         printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
@@ -89,13 +89,43 @@ void* createThreadMethodTwo(void* arg){
     while(true){
         if(!all_threads_are_created)
             continue;
-        if(arrayLocks[person->personNumber] == 0)
+        if(arrayLocks[person->personNumber] == false)
             continue;
         person->waitingTime = current_time_in_ms() - person->arrivalTime;
         personCounter++;
         printf("personCounter: %d\n", personCounter);
-        arrayLocks[(person->personNumber) + 1] = 1;
-        person->leavingTime = current_time_in_ms() - person->arrivalTime;
+        arrayLocks[(person->personNumber) + 1] = true;
+        person->leavingTime = current_time_in_ms();
+        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        break;
+    }
+    free(person);
+    printf("Person with number (%d) is home.\n", *((int *) arg));
+    return NULL;
+}
+
+/** 
+ * Funcition name: createThreadMethodThree()
+ * Purpose: * Have all threads spin on a array cells of an array. 
+ *          * Once the cell becomes true, then have the thread that was spinning 
+ *          * on that cell set the next cell to true as well.
+ * Developer: Osama Elsamny
+ * Input: the spcific number of each thread
+ * Output: N/A
+*/
+void* createThreadMethodThree(void* arg){
+    Person *person = (Person*) malloc(sizeof(Person));
+    person->personNumber = *((int *) arg);
+    person->arrivalTime = current_time_in_ms();
+    while(true){
+        if(!all_threads_are_created)
+            continue;
+        /*lock*/
+        person->waitingTime = current_time_in_ms() - person->arrivalTime;
+        personCounter++;
+        printf("personCounter: %d\n", personCounter);
+        /*unlock*/
+        person->leavingTime = current_time_in_ms();
         printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%lf, Delay_Time:%lf, Leaving_Time:%lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
@@ -155,14 +185,27 @@ int main(){
         pthread_create(&people2[i], NULL, createThreadMethodTwo, &peopleEnumeration2[i]);
     }
     all_threads_are_created = true;
-    arrayLocks[0] = 1;
+    arrayLocks[0] = true;
     sleep(30);
     for(int i = 0; i < numPeople2; i++){
         pthread_join(people2[i], NULL);
     }
     printf("-------------------------------------Method Three------------------------------------------------\n");
     /*-------------------------------------Method Three------------------------------------------------*/
-
+    personCounter = 0;
+    all_threads_are_created = false;
+    int numPeople3 = numPeopleGlobal;
+    pthread_t people3[numPeople3];
+    int peopleEnumeration3[numPeople3];
+    arrayEnumeration(numPeople3, peopleEnumeration3);
+    for(int i = 0; i < numPeople3; i++){
+        pthread_create(&people3[i], NULL, createThreadMethodThree, &peopleEnumeration3[i]);
+    }
+    all_threads_are_created = true;
+    sleep(30);
+    for(int i = 0; i < numPeople3; i++){
+        pthread_join(people3[i], NULL);
+    }
     return 0;
 }
 //Templet for the functions to be written 
