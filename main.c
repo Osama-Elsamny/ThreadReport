@@ -5,14 +5,13 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#define MAX_THREADS 30
+#define MAX_THREADS 1000
 
 bool all_threads_are_created = false;
 int personCounter = 0;
 int numPeopleGlobal = MAX_THREADS;
 bool arrayLocks[MAX_THREADS];  
 pthread_mutex_t personCounter_mutex;
-pthread_mutex_t fetch_inc_mutex;
 
 typedef struct{
     int next_ticket;
@@ -35,10 +34,13 @@ typedef struct{
  * Input: N/A
  * Output: return an int that represents the number of the ticket holder
 */
-int fetch_and_inc(){
-    int x = ticketLock->next_ticket;
-    (ticketLock->next_ticket)++;
-    return x;
+static inline int fetch_and_inc(int* variable, int value){
+    __asm__ volatile("lock; xaddl %0, %1"
+      : "+r" (value), "+m" (*variable) // input+output
+      : // No input-only
+      : "memory"
+    );
+    return value;
 }
 
 /** 
@@ -49,9 +51,7 @@ int fetch_and_inc(){
  * Output: N/A
 */
 void acquire_lock(){
-    pthread_mutex_lock(&fetch_inc_mutex);
-    int myTicket = fetch_and_inc();
-    pthread_mutex_unlock(&fetch_inc_mutex);
+    int myTicket = fetch_and_inc(&(ticketLock->next_ticket), 1);
     while(ticketLock->now_servig != myTicket){}
 }
 
@@ -67,13 +67,13 @@ void release_lock(){
 }
 
 /** 
- * Funcition name:current_time_in_ms
- * Purpose: To know the current time in ms
+ * Funcition name:current_time_in_ns
+ * Purpose: To know the current time in ns
  * Developer: Osama Elsamny
  * Input: N/A
  * Output: return type is double varible
 */
-long double current_time_in_ms(void){
+long double current_time_in_ns(void){
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
     return now.tv_sec * 1000000000.0 + now.tv_nsec;
@@ -102,21 +102,22 @@ void initialzeArrayLocks(){
 void* createThreadMethodOne(void* arg){
     Person *person = (Person*) malloc(sizeof(Person));
     person->personNumber = *((int *) arg);
-    person->arrivalTime = current_time_in_ms();
+    person->arrivalTime = current_time_in_ns();
     while(true){
         if(!all_threads_are_created)
             continue;
         pthread_mutex_lock(&personCounter_mutex);
-        person->waitingTime = current_time_in_ms() - person->arrivalTime;
+        person->waitingTime = current_time_in_ns() - person->arrivalTime;
         personCounter++;
-        printf("personCounter: %d\n", personCounter);
+        //printf("personCounter: %d\n", personCounter);
         pthread_mutex_unlock(&personCounter_mutex);
-        person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        person->leavingTime = current_time_in_ns();
+        printf("%d, %.2Lf, %.2Lf, %.2Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        //printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
-    printf("Person with number (%d) is home.\n", *((int *) arg));
+    //printf("Person with number (%d) is home.\n", *((int *) arg));
     return NULL;
 }
 
@@ -132,22 +133,23 @@ void* createThreadMethodOne(void* arg){
 void* createThreadMethodTwo(void* arg){
     Person *person = (Person*) malloc(sizeof(Person));
     person->personNumber = *((int *) arg);
-    person->arrivalTime = current_time_in_ms();
+    person->arrivalTime = current_time_in_ns();
     while(true){
         if(!all_threads_are_created)
             continue;
         if(arrayLocks[person->personNumber] == false)
             continue;
-        person->waitingTime = current_time_in_ms() - (person->arrivalTime);
+        person->waitingTime = current_time_in_ns() - (person->arrivalTime);
         personCounter++;
-        printf("personCounter: %d\n", personCounter);
+        //printf("personCounter: %d\n", personCounter);
         arrayLocks[(person->personNumber) + 1] = true;
-        person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        person->leavingTime = current_time_in_ns();
+        printf("%d, %.2Lf, %.2Lf, %.2Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        //printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
-    printf("Person with number (%d) is home.\n", *((int *) arg));
+    //printf("Person with number (%d) is home.\n", *((int *) arg));
     return NULL;
 }
 
@@ -163,23 +165,22 @@ void* createThreadMethodTwo(void* arg){
 void* createThreadMethodThree(void* arg){
     Person *person = (Person*) malloc(sizeof(Person));
     person->personNumber = *((int *) arg);
-    person->arrivalTime = current_time_in_ms();
+    person->arrivalTime = current_time_in_ns();
     while(true){
         if(!all_threads_are_created)
             continue;
-        /*lock*/
         acquire_lock();
-        person->waitingTime = current_time_in_ms() - person->arrivalTime;
+        person->waitingTime = current_time_in_ns() - person->arrivalTime;
         personCounter++;
-        printf("personCounter: %d\n", personCounter);
-        /*unlock*/
+        //printf("personCounter: %d\n", personCounter);
         release_lock();
-        person->leavingTime = current_time_in_ms();
-        printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        person->leavingTime = current_time_in_ns();
+        printf("%d, %.2Lf, %.2Lf, %.2Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
+        //printf("Person with number (%d) is done increming the counter with the following statistics: Arrival_Time:%Lf, Delay_Time:%Lf, Leaving_Time:%Lf\n" ,person->personNumber, person->arrivalTime, person->waitingTime, person->leavingTime);
         break;
     }
     free(person);
-    printf("Person with number (%d) is home.\n", *((int *) arg));
+    //printf("Person with number (%d) is home.\n", *((int *) arg));
     return NULL;
 }
 
@@ -208,7 +209,7 @@ void arrayEnumeration(int max, int *array){
 */
 int main(){
     /*-------------------------------------Method One------------------------------------------------*/
-    printf("-------------------------------------Method One------------------------------------------------\n");
+    printf("-------------------------------------Method One ---------------------------------------------------------------------------\n");
     int numPeople1 = numPeopleGlobal;
     pthread_t people1[numPeople1];
     int peopleEnumeration1[numPeople1];
@@ -216,12 +217,14 @@ int main(){
     for(int i = 0; i < numPeople1; i++){
         pthread_create(&people1[i], NULL, createThreadMethodOne, &peopleEnumeration1[i]);
     }
+    long double methodOneStart = current_time_in_ns();
     all_threads_are_created = true;
-    sleep(30);
     for(int i = 0; i < numPeople1; i++){
         pthread_join(people1[i], NULL);
     }
-    printf("-------------------------------------Method Two------------------------------------------------\n");
+    long double methodOneEnd = current_time_in_ns();
+    printf("%.2Lf\n",methodOneEnd - methodOneStart);
+    printf("-------------------------------------Method Two ---------------------------------------------------------------------------\n");
     /*-------------------------------------Method Two------------------------------------------------*/
     personCounter = 0;
     all_threads_are_created = false;
@@ -233,13 +236,15 @@ int main(){
     for(int i = 0; i < numPeople2; i++){
         pthread_create(&people2[i], NULL, createThreadMethodTwo, &peopleEnumeration2[i]);
     }
+    long double methodTwoStart = current_time_in_ns();
     all_threads_are_created = true;
     arrayLocks[0] = true;
-    sleep(30);
     for(int i = 0; i < numPeople2; i++){
         pthread_join(people2[i], NULL);
     }
-    printf("-------------------------------------Method Three------------------------------------------------\n");
+    long double methodTwoEnd = current_time_in_ns();
+    printf("%.2Lf\n",methodTwoEnd - methodTwoStart);
+    printf("-------------------------------------Method Three ---------------------------------------------------------------------------\n");
     /*-------------------------------------Method Three------------------------------------------------*/
     personCounter = 0;
     ticketLock = (TicketLock*) malloc(sizeof(TicketLock));
@@ -253,11 +258,13 @@ int main(){
     for(int i = 0; i < numPeople3; i++){
         pthread_create(&people3[i], NULL, createThreadMethodThree, &peopleEnumeration3[i]);
     }
+    long double methodThreeStart = current_time_in_ns();
     all_threads_are_created = true;
-    sleep(30);
     for(int i = 0; i < numPeople3; i++){
         pthread_join(people3[i], NULL);
     }
+    long double methodThreend = current_time_in_ns();
+    printf("%.2Lf\n",methodThreend - methodThreeStart);
     return 0;
 }
 //Templet for the functions
